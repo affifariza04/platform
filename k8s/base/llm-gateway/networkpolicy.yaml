@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: llm-gateway
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: llm-gateway }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # In-cluster callers in this namespace, plus Prometheus scraping /metrics.
+    - from:
+        - podSelector: {}
+      ports: [{ port: 8080 }]
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: monitoring }
+      ports: [{ port: 8080 }]
+  egress:
+    # Provider APIs over HTTPS only: no lateral movement, no cloud instance metadata.
+    # An egress gateway with FQDN rules would be tighter still.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 169.254.169.254/32]
+      ports: [{ port: 443 }]

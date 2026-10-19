@@ -1,0 +1,39 @@
+# Promotion is a pull request, not a button: production only ever receives an
+# image tag that is already running in staging, and every change is reviewable
+# and revertible in git.
+name: promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Application to promote
+        type: choice
+        options: [storefront, llm-gateway, pulse]
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy the staging tag into production
+        id: tag
+        run: |
+          image="ghcr.io/affifariza04/${{ inputs.app }}"
+          tag=$(yq ".images[] | select(.name == \"$image\") | .newTag" k8s/overlays/staging/kustomization.yaml)
+          test -n "$tag" && test "$tag" != "null"
+          yq -i "(.images[] | select(.name == \"$image\")).newTag = \"$tag\"" k8s/overlays/production/kustomization.yaml
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: promote/${{ inputs.app }}-${{ steps.tag.outputs.tag }}
+          title: "Promote ${{ inputs.app }} ${{ steps.tag.outputs.tag }} to production"
+          body: |
+            Promotes the image currently running in **staging** to **production**.
+            Argo CD syncs production when this merges. To roll back, revert this PR.
+          labels: promotion

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps-staging
+  labels:
+    # Pod Security Admission: reject any pod that isn't non-root, capability-free, seccomp'd.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

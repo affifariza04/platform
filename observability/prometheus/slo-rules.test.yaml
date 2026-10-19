@@ -1,0 +1,37 @@
+# promtool unit tests: proves the alerts fire (and stay quiet) on synthetic traffic.
+#   promtool test rules observability/prometheus/slo-rules.test.yaml
+rule_files:
+  - slo-rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - name: healthy traffic never pages
+    interval: 1m
+    input_series:
+      - series: 'gateway_requests_total{route="fast",outcome="ok"}'
+        values: "0+1000x120"
+      - series: 'gateway_requests_total{route="fast",outcome="all_providers_failed"}'
+        values: "0+1x120" # 0.1% errors, inside a 0.5% budget
+      - series: 'gateway_requests_total{route="fast",outcome="rate_limited"}'
+        values: "0+500x120" # client-side 429s must not count
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: GatewayErrorBudgetBurnFast
+        exp_alerts: []
+
+  - name: provider outage pages within minutes
+    interval: 1m
+    input_series:
+      - series: 'gateway_requests_total{route="fast",outcome="ok"}'
+        values: "0+1000x60 60000+800x60"
+      - series: 'gateway_requests_total{route="fast",outcome="all_providers_failed"}'
+        values: "0+0x60 0+200x60" # 20% errors from minute 60
+    alert_rule_test:
+      - eval_time: 90m # 1h window: 30 min at 20% errors → 10% ratio > 7.2% threshold
+        alertname: GatewayErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels: { severity: page, slo: gateway-availability }
+            exp_annotations:
+              summary: llm-gateway is burning its 30-day error budget 14x too fast
+              runbook_url: https://github.com/affifariza04/platform/blob/main/docs/runbooks/llm-gateway.md#error-budget-burn

@@ -1,0 +1,25 @@
+[gateway]
+retry_attempts = 2
+breaker_failures = 5
+breaker_reset_s = 30
+cache_ttl_s = 600
+log_prompts = false
+
+[routes]
+smart = ["anthropic:claude-opus-5-5", "gemini:gemini-2.5-pro"]
+fast  = ["anthropic:claude-haiku-5-5", "gemini:gemini-2.5-flash"]
+
+[prices."claude-opus-5-5"]
+input = 4.0
+output = 20.0
+[prices."claude-haiku-5-5"]
+input = 0.10
+output = 0.50
+[prices."gemini-2.5-pro"]
+input = 1.25
+output = 10.0
+[prices."gemini-2.5-flash"]
+input = 0.30
+output = 2.50
+
+# API key digests are added per environment from the secret store, never as raw keys in git.

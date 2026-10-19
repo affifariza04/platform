@@ -1,0 +1,82 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  policies:
+    name: Policy tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - run: uv run pytest -q
+
+  kubernetes:
+    name: Render + schema-validate overlays
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+      - name: kustomize build | kubeconform
+        run: |
+          for env in staging production; do
+            echo "::group::$env"
+            kubectl kustomize "k8s/overlays/$env" > "/tmp/$env.yaml"
+            kubeconform -strict -summary -kubernetes-version 1.31.0 "/tmp/$env.yaml"
+            echo "::endgroup::"
+          done
+      - name: Validate Argo CD applications (CRD schemas)
+        run: |
+          kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            gitops/applications.yaml
+
+  prometheus:
+    name: Alert rules (promtool)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check and unit-test rules
+        run: |
+          docker run --rm -v "$PWD/observability/prometheus:/rules" --workdir /rules \
+            --entrypoint promtool prom/prometheus:v2.53.0 check rules slo-rules.yaml
+          docker run --rm -v "$PWD/observability/prometheus:/rules" --workdir /rules \
+            --entrypoint promtool prom/prometheus:v2.53.0 test rules slo-rules.test.yaml
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive terraform
+      - name: validate each environment
+        run: |
+          for env in staging production; do
+            terraform -chdir="terraform/envs/$env" init -backend=false -input=false
+            terraform -chdir="terraform/envs/$env" validate
+          done
+
+  security:
+    name: Misconfiguration scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          trivyignores: .trivyignore

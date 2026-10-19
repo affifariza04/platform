@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600" # long-lived WebSockets for pulse
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [shop.staging.affifariza04.dev, chat.staging.affifariza04.dev]
+      secretName: public-tls
+  rules:
+    - host: shop.staging.affifariza04.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: storefront, port: { name: http } } }
+    - host: chat.staging.affifariza04.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: pulse, port: { name: http } } }

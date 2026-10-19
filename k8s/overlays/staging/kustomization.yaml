@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: apps-staging
+resources:
+  - namespace.yaml
+  - ingress.yaml
+  - ../../base/common
+  - ../../base/storefront
+  - ../../base/llm-gateway
+  - ../../base/pulse
+# CI rewrites these tags (immutable git SHAs) when it promotes a build; Argo CD syncs the change.
+images:
+  - name: ghcr.io/affifariza04/storefront
+    newTag: sha-0000000
+  - name: ghcr.io/affifariza04/llm-gateway
+    newTag: sha-0000000
+  - name: ghcr.io/affifariza04/pulse
+    newTag: sha-0000000
+patches:
+  # Staging runs lean: one replica each, no autoscaling headroom.
+  - target: { kind: HorizontalPodAutoscaler }
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+  - target: { kind: StatefulSet, name: pulse }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/1/value
+        value: https://chat.staging.affifariza04.dev

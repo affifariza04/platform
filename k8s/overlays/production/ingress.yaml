@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600" # long-lived WebSockets for pulse
+    nginx.ingress.kubernetes.io/limit-rps: "50" # per-client-IP edge rate limit
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [shop.affifariza04.dev, chat.affifariza04.dev]
+      secretName: public-tls
+  rules:
+    - host: shop.affifariza04.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: storefront, port: { name: http } } }
+    - host: chat.affifariza04.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: pulse, port: { name: http } } }

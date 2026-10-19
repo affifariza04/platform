@@ -1,0 +1,55 @@
+# pulse keeps room membership in memory and its message log in SQLite, so it is
+# deliberately a single-replica StatefulSet with a persistent volume. Two replicas
+# today would split chat rooms between pods; scaling out first needs Redis pub/sub
+# and Postgres (see the pulse README).
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pulse
+spec:
+  serviceName: pulse
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: pulse }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: pulse }
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: pulse
+          image: ghcr.io/affifariza04/pulse:latest # pinned per environment by the overlay
+          ports:
+            - { name: http, containerPort: 3030 }
+          env:
+            - { name: DATABASE_PATH, value: /app/data/pulse.db }
+            - { name: ALLOWED_ORIGINS, value: "" } # set per environment
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { memory: 256Mi }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /app/data }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests: { storage: 5Gi }

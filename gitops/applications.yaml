@@ -1,0 +1,46 @@
+# Argo CD: the cluster continuously converges to what's in this repo.
+# Staging auto-syncs every merge; production syncs automatically too, but its
+# image tags only change through the promotion workflow (.github/workflows/promote.yml),
+# which copies tags that have already run in staging.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apps-staging
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/affifariza04/platform
+    targetRevision: main
+    path: k8s/overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps-staging
+  syncPolicy:
+    automated:
+      prune: true # resources deleted from git are deleted from the cluster
+      selfHeal: true # manual kubectl edits are reverted: git is the source of truth
+    syncOptions: [CreateNamespace=false, ServerSideApply=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: apps-production
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/affifariza04/platform
+    targetRevision: main
+    path: k8s/overlays/production
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps-prod
+  syncPolicy:
+    automated:
+      prune: false # never auto-delete in production; a human confirms deletions
+      selfHeal: true
+    syncOptions: [CreateNamespace=false, ServerSideApply=true]
+    retry:
+      limit: 3
+      backoff: { duration: 30s, factor: 2, maxDuration: 5m }
