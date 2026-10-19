@@ -79,5 +79,17 @@ jobs:
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
-          exit-code: "1"
+          format: table
+          output: trivy.txt
+          exit-code: "0" # report first, then gate below
           trivyignores: .trivyignore
+      - name: Publish findings to the job summary
+        if: always()
+        run: |
+          { echo '### Trivy misconfiguration scan (HIGH, CRITICAL)'; echo '```'; cat trivy.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Fail on unaccepted findings
+        run: |
+          if grep -Eq 'Failures: [1-9]' trivy.txt; then
+            echo "::error::Trivy found HIGH/CRITICAL misconfigurations (see job summary)"
+            exit 1
+          fi
