@@ -1,1 +1,9 @@
 # Accepted findings, each with a reason. Reviewed like code.
+
+# Node security group allows all egress (terraform-aws-modules/eks default).
+# Nodes must pull images (GHCR/ECR) and llm-gateway must call LLM provider APIs,
+# none of which have stable IP ranges. Egress is instead restricted per pod by
+# Kubernetes NetworkPolicy (default-deny + explicit 443/5432 rules, metadata IP
+# blocked), which is where the workload identity actually lives.
+AVD-AWS-0104
+AWS-0104

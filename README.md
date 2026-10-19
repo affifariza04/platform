@@ -43,7 +43,8 @@ It runs [storefront](https://github.com/affifariza04/storefront), [llm-gateway](
 - Every pod is non-root, uses the seccomp `RuntimeDefault` profile, has a read-only root filesystem, drops all capabilities, and doesn't mount a ServiceAccount token. The namespace enforces it through Pod Security Admission `restricted`, so a pod that drifts is **rejected**, not just flagged.
 - Network policy is deny-all. Each service then opens exactly the paths it needs: storefront → Postgres:5432, llm-gateway → :443 only, and nothing can reach `169.254.169.254` (cloud instance metadata, the classic SSRF pivot).
 - The RDS master password is **managed by AWS Secrets Manager** (`manage_master_user_password`), so it never exists in Terraform state, code, or CI logs. TLS is forced, and IAM auth is enabled.
-- EKS uses KMS envelope encryption for Secrets, IRSA for pod IAM, and IMDSv2 with hop limit 1 on nodes.
+- The **EKS API is private**. GitOps is a pull model (Argo CD runs inside the cluster), so CI never needs to reach the Kubernetes API, which removes the most common way clusters get attacked. EKS also uses KMS envelope encryption for Secrets, IRSA for pod IAM, and IMDSv2 with hop limit 1 on nodes.
+- Trivy scans every push and fails on HIGH/CRITICAL. The one accepted finding (node-level egress, needed for image pulls and LLM APIs) is justified in [`.trivyignore`](.trivyignore) and enforced per pod by NetworkPolicy instead.
 
 **Reliability**
 - Rolling updates use `maxUnavailable: 0`. A `preStop` sleep lets the load balancer drain before SIGTERM. Topology spread covers three AZs.

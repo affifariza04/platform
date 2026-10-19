@@ -36,11 +36,6 @@ variable "node_max" {
   default = 6
 }
 
-variable "public_endpoint_cidrs" {
-  type        = list(string)
-  description = "Who may reach the Kubernetes API. Keep this to office/VPN ranges; CI uses OIDC from inside AWS."
-}
-
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
@@ -51,8 +46,10 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.subnet_ids # private subnets only: nodes get no public IPs
 
-  cluster_endpoint_public_access       = true
-  cluster_endpoint_public_access_cidrs = var.public_endpoint_cidrs
+  # Private API only. GitOps is a pull model: Argo CD runs inside the cluster, so
+  # CI never needs to reach the Kubernetes API. Humans use SSM/VPN into the VPC.
+  cluster_endpoint_public_access  = false
+  cluster_endpoint_private_access = true
 
   # Secrets in etcd are envelope-encrypted with a dedicated KMS key.
   cluster_encryption_config = { resources = ["secrets"] }

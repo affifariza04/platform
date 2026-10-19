@@ -27,13 +27,12 @@ module "network" {
 }
 
 module "cluster" {
-  source                = "../../modules/cluster"
-  name                  = local.name
-  vpc_id                = module.network.vpc_id
-  subnet_ids            = module.network.private_subnets
-  node_min              = 2
-  node_max              = 4
-  public_endpoint_cidrs = var.admin_cidrs
+  source     = "../../modules/cluster"
+  name       = local.name
+  vpc_id     = module.network.vpc_id
+  subnet_ids = module.network.private_subnets
+  node_min   = 2
+  node_max   = 4
 }
 
 module "database" {
@@ -44,11 +43,6 @@ module "database" {
   allowed_security_group_ids = [module.cluster.node_security_group_id]
   multi_az                   = false
   deletion_protection        = false # staging is disposable
-}
-
-variable "admin_cidrs" {
-  type        = list(string)
-  description = "CIDRs allowed to reach the Kubernetes API."
 }
 
 output "cluster_name" {

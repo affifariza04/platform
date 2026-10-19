@@ -25,14 +25,13 @@ module "network" {
 }
 
 module "cluster" {
-  source                = "../../modules/cluster"
-  name                  = local.name
-  vpc_id                = module.network.vpc_id
-  subnet_ids            = module.network.private_subnets
-  node_instance_types   = ["m6i.large", "m5.large"] # two types: more capacity pools
-  node_min              = 3
-  node_max              = 12
-  public_endpoint_cidrs = var.admin_cidrs
+  source              = "../../modules/cluster"
+  name                = local.name
+  vpc_id              = module.network.vpc_id
+  subnet_ids          = module.network.private_subnets
+  node_instance_types = ["m6i.large", "m5.large"] # two types: more capacity pools
+  node_min            = 3
+  node_max            = 12
 }
 
 module "database" {
@@ -44,11 +43,6 @@ module "database" {
   instance_class             = "db.m6g.large"
   multi_az                   = true # synchronous standby in a second AZ
   deletion_protection        = true
-}
-
-variable "admin_cidrs" {
-  type        = list(string)
-  description = "CIDRs allowed to reach the Kubernetes API."
 }
 
 output "cluster_name" {
